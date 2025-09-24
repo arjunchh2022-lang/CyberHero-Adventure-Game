@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CyberHero Adventure</title>
+<style>
+body {
+  margin:0;
+  font-family:'Comic Sans MS', cursive;
+  background:#111;
+  color:white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-height: 100vh;
+  overflow-y: auto;
+  padding-top: 20px;
+}
+
+canvas#bgCanvas {
+  position:fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  z-index:-1;
+}
+
+h1 { font-size:2em; color:#00ffcc; margin-bottom:10px; }
+p { font-size:1.2em; }
+
+input, button {
+  font-size:1.2em; padding:8px 12px; margin:10px;
+  border-radius:10px; border:none; cursor:pointer;
+}
+button:hover { background-color:#26c6da; color:white; transform:scale(1.05); }
+
+#greeting { margin-bottom:12px; font-size:1.5em; }
+
+#game-area {
+  width : 900px;
+  height: 300px;
+  position: relative;
+  margin: 18px auto;
+  background:linear-gradient(to top, #3cb043 35%, #87CEEB 35%);
+  border:3px solid #00ffcc;
+  border-radius:15px;
+  overflow:hidden;
+  box-shadow:0 0 20px #00ffcc;
+}
+
+.character {
+  position:absolute; bottom:50px; width:120px; height:120px;
+  transition: all 0.3s;
+}
+#hero { left:50px; }
+
+.health-container {
+  position:absolute; bottom:130%; width:120px; height:15px; background:#333; border-radius:5px;
+  overflow:hidden; margin-left:-10px;
+}
+#hero-health { height:100%; width:100%; background:#4caf50; border-radius:5px;}
+#boss-health { height:100%; width:100%; background:#f44336; border-radius:5px;}
+
+.label {
+  position:absolute; bottom:110%; width:100%; font-size:0.8em; font-weight:bold; text-align:center; color:white;
+}
+
+#scoreboard {
+  position:absolute; top:10px; right:10px; background: rgba(0,0,0,0.6);
+  padding:10px 15px; border-radius:10px; font-size:1em; text-align:left;
+}
+
+.question { font-size:1.4em; margin:20px; color:#00ffcc; font-weight:bold; }
+.options button { display:block; margin:10px auto; width:380px; background:#ffcc80; color:#4e342e; font-weight:bold; font-size:1.2em; }
+.options button:hover { background:#ffb74d; color:white; }
+
+.projectile { position:absolute; width:20px; height:20px; border-radius:50%; transition: all 0.5s; }
+
+/* popup base style (used both for small feedback popups and persistent facts) */
+.popup {
+  position:absolute; top:40%; left:50%; transform:translate(-50%,-50%);
+  padding:10px 18px; font-size:1.1em; font-weight:bold; border-radius:12px;
+  color:white; opacity:0; text-align:left; z-index:20; transition:all 0.25s; white-space: pre-line;
+  max-width:620px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+}
+
+/* persistent fact popup specifics */
+.persistent-fact {
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+}
+
+/* close button in persistent popup */
+.persistent-fact .close-btn {
+  background:transparent;
+  border:none;
+  color:white;
+  font-weight:bold;
+  font-size:18px;
+  cursor:pointer;
+  margin-left:auto;
+}
+
+/* small label for "Tip" inside popup */
+.popup .tip-label { font-size:0.95em; opacity:0.95; display:block; margin-bottom:6px; font-weight:800; }
+
+/* keep final-move button style unchanged */
+#final-move-btn {
+  display:none; position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
+  font-size:1.2em; padding:10px 20px; border-radius:8px; background:#ffeb3b; color:#111; cursor:pointer;
+}
+#final-move-btn:hover { background:#ffc107; }
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+
+<div id="welcome" style="position:relative; height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+  <div>
+    <h1>Welcome to CyberHero Adventure! 🦸‍♂️</h1>
+    <p>Enter your nickname:</p>
+    <input type="text" id="playerName" placeholder="Your Name">
+    <button onclick="enterNickname()">Next</button>
+  </div>
+
+  <p style="position:fixed; bottom:20px; font-size:24px; color:#00ffcc; max-width:700px; text-align:center; margin:0 auto; left:0; right:0;">
+    This game has been developed to spread awareness about cybersecurity 🔒.  
+    Learn safe online habits while having fun defeating the virus boss 🦠⚔️!
+  </p>
+</div>
+
+<div id="intro" style="display:none;">
+<h1>CyberHero Reporting! 🦸‍♂</h1>
+<p id="intro-text" style="font-size:1.6em;">Alert! Virus Boss has invaded your computer. Make smart cybersecurity choices to defeat it! Wrong answers hurt your HP , also partial answer may give you points but it doesn't hurt the boss. Ready to protect your system?</p>
+<button onclick="startGame()">Start Adventure</button>
+</div>
+
+<div id="game-container" style="display:none;">
+<h1 id="greeting"></h1>
+<div id="scoreboard">
+Correct: <span id="correctCount">0</span><br>
+Partial: <span id="partialCount">0</span><br>
+Wrong: <span id="wrongCount">0</span><br>
+Points: <span id="totalPoints">0</span>
+</div>
+<div id="game-area">
+  <div id="hero" class="character">
+    <div class="label">Hero</div>
+    <img src="data:image/jpeg;base64,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
+" width="120" height="120">
+    <div class="health-container"><div id="hero-health"></div></div>
+  </div>
+  <div id="boss" class="character" style="right:50px;">
+    <div class="label">Boss [Level: ♾️]</div>
+    <img src="data:image/jpeg;base64,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
+" width="120" height="120">
+    <div class="health-container">
+        <div id="boss-health"></div>
+    </div>
+</div>
+
+  <button id="final-move-btn" onclick="finalMove()">Execute Final Move ⚡</button>
+</div>
+<div class="question" id="question"></div>
+<div class="options" id="options"></div>
+</div>
+
+<div id="end-screen" style="display:none;">
+<h1 id="end-message"></h1>
+<p id="final-score"></p>
+<button onclick="restartGame()">Play Again</button>
+</div>
+
+<script>
+let playerName = '';
+let heroHealth = 200;
+let bossHealth = 200;
+let score = 0;
+let lowHpAlerted = false;
+let correctCount = 0;
+let partialCount = 0;
+let wrongCount = 0;
+let availableQuestions = [];
+let facts = [];
+let factIndex = 0;
+let questionCounter = 0;
+
+// Full questions array preserved exactly as before (no change to your original question set)
+// I used the same questions you provided earlier — they remain unchanged.
+const questions = [
+{q:"A stranger DMs you on Instagram 📸 saying 'Hey cutie!' What do you do?", options:["Ignore or block 🚫","Tell a parent 👨‍👩‍👧","Reply with heart ❤️"]},
+{q:"You get a YouTube comment 🎥 saying 'Click my link for free Robux!' What’s safe?", options:["Don’t click 🚫","Report it 🚨","Click link 🖱️"]},
+{q:"Friend asks for your Netflix password 🎬. Should you share?", options:["Nope 🚫","Only with parents 👨‍👩‍👧","Share freely 📩"]},
+{q:"You get bullied on WhatsApp 💬. What’s right?", options:["Block and tell an adult 🚫","Fight back online ⚔️","Stay silent 🤐"]},
+{q:"An email says 'You won $1000!' 💵📧. What should you do?", options:["Ignore 🚫","Show an adult 👨‍👩‍👧","Click fast 🖱️"]},
+{q:"You get a strange phone call 📞 asking your address 🏠. What now?", options:["Don’t share 🚫","Tell parent 👨‍👩‍👧","Say it 🗣️"]},
+{q:"Someone makes fun of your TikTok video 🎶😢. Best action?", options:["Tell an adult 👨‍👩‍👧","Ignore bully 🚫","Post angry reply 😡"]},
+{q:"Pop-up says 'Your phone has 99 viruses!' 📱🦠. Action?", options:["Close it 🚫","Check antivirus 🛡️","Click panic ⚡"]},
+{q:"Your little brother wants to play online 🎮. Best advice?", options:["Don’t chat with strangers 🚫","Always share password 📝","Accept all friend requests 👯"]},
+{q:"Instagram asks for your birthday 🎂. What do you do?", options:["Enter real only if parent says ✅","Type random age 🤪","Post it publicly 🌍"]},
+{q:"Someone on Roblox says 'Tell me your password, I’ll give you free stuff!' 🕹️. What now?", options:["Never share 🚫","Ask parent 👨‍👩‍👧","Tell them 🔑"]},
+{q:"Your teacher emails homework 📧. How to know it’s real?", options:["Check email address carefully 👀","Open all attachments 📂","Reply with password 🔑"]},
+{q:"Friend wants your phone to install a game 📱🎮. What do you do?", options:["Only from app store ✅","Install from random link 🌐","Say yes always 👍"]},
+{q:"Stranger comments 'Send me a selfie' 🤳. What’s right?", options:["Don’t send 🚫","Ask parent 👨‍👩‍👧","Send now 📸"]},
+{q:"You find USB at school 🏫💾. What should you do?", options:["Give to teacher 👩‍🏫","Plug at home 🏠","Check inside 🤓"]},
+{q:"On Facebook you see quiz 'What’s your pet’s name?' 🐶❓. Should you answer?", options:["No, it’s password hint 🚫","Answer for fun 🎉","Post to story 📖"]},
+{q:"You get 10 missed calls from unknown number 📞❓. What’s safe?", options:["Don’t call back 🚫","Tell an adult 👨‍👩‍👧","Call them fast 📲"]},
+{q:"YouTube video says 'Download app in link below' 🎥🔗. What’s right?", options:["Don’t click 🚫","Only from app store ✅","Click always 🖱️"]},
+{q:"Friend shares cracked Minecraft link 🪓🎮. What now?", options:["Don’t download 🚫","Install quickly ⚡","Share with others 📤"]},
+{q:"Pop-up says 'Free iPhone for you!' 📱🎁. What’s safe?", options:["Close it 🚫","Tell parent 👨‍👩‍👧","Type details fast ⌨️"]},
+{q:"Someone keeps spamming mean messages 💬😡. Action?", options:["Block/report 🚫","Fight back 🥊","Stay quiet 🤐"]},
+{q:"Your Insta friend says 'Send me your phone number' 📲. What do you do?", options:["Don’t share 🚫","Ask parent 👨‍👩‍👧","Send fast 📝"]},
+{q:"Email from 'School' has many spelling mistakes ✍️📧. What now?", options:["Check carefully 🚫","Ignore 🚶","Click link 🔗"]},
+{q:"You see a funny meme link 😂🔗. Safe?", options:["Don’t click 🚫","Check with adult 👨‍👩‍👧","Click instantly 🖱️"]},
+{q:"Pop-up says install free game 🎮⚠️. What’s safe?", options:["Only official store ✅","Click install 📥","Share with friends 📤"]},
+{q:"Snapchat stranger says 'Let’s meet' 👤📸. What now?", options:["Don’t agree 🚫","Tell parent 👨‍👩‍👧","Say yes 🤝"]},
+{q:"YouTube comment says 'Send me money' 💰💬. Action?", options:["Don’t send 🚫","Tell parent 👨‍👩‍👧","Send cash 💵"]},
+{q:"Your BFF asks for your Gmail password 📧👯. Do you share?", options:["No 🚫","Yes 📨","Only on weekends 😂"]},
+{q:"TikTok says update needed 📱🎶. What’s safe?", options:["Update from app store ✅","Download random patch 🌐","Ignore forever 🚶"]},
+{q:"Classmate calls you ugly online 😢💻. What’s best?", options:["Tell adult 🚫","Ignore bully 😐","Fight back 🥊"]},
+{q:"A stranger promises free diamonds in Free Fire 💎🔥. What now?", options:["Don’t trust 🚫","Ask parent 👨‍👩‍👧","Click link 🖱️"]},
+{q:"Game asks for your real name 🎮👤. Should you?", options:["Only if needed and parent agrees ✅","Always type full name 👤","Type random celebrity 🤪"]},
+{q:"Someone online asks 'Where is your school?' 🏫🌐. What do you do?", options:["Don’t share 🚫","Ask adult 👨‍👩‍👧","Tell them 🏫"]},
+{q:"Pop-up says 'Install cleaner now!' 🧹💻. What’s safe?", options:["Check app store ✅","Click fast ⚡","Ignore antivirus 🛡️"]},
+{q:"You see friend request from stranger 👤➕. What now?", options:["Don’t accept 🚫","Check with parent 👨‍👩‍👧","Accept all 👯"]},
+{q:"Instagram reel link says 'Secret hack!' 🎥🔗. Action?", options:["Don’t click 🚫","Verify first ✅","Click always 🖱️"]},
+{q:"Stranger offers gift card 🎫👤. What’s safe?", options:["Don’t accept 🚫","Ask adult 👨‍👩‍👧","Say thanks and share 📨"]},
+{q:"Phone asks microphone access 🎤📱. What now?", options:["Allow only if needed ✅","Always allow 🌐","Never allow 🚫"]},
+{q:"Pop-up shows cartoon 'You won a puppy!' 🐶🎁. What now?", options:["Don’t click 🚫","Tell parent 👨‍👩‍👧","Click for puppy 🐾"]},
+{q:"Friend asks for your gaming account login 🎮🔑. Should you?", options:["Never share 🚫","Share sometimes 🤷","Always give 👯"]},
+{q:"Stranger on Facebook says 'Send me your pic' 📷👤. What do you do?", options:["Don’t share 🚫","Tell parent 👨‍👩‍👧","Send selfie 🤳"]},
+{q:"You get email saying 'Reset password now' ⏰📧. Action?", options:["Check real site ✅","Click link fast ⚡","Ignore 🚶"]},
+{q:"Your password is '12345' 🔑🙈. What now?", options:["Change it strong ✅","Keep it 🤷","Share with BFF 👯"]},
+{q:"A gamer in chat asks your age 🎂🎮. Should you tell?", options:["No 🚫","Only with adult 👨‍👩‍👧","Yes 🎤"]},
+{q:"Pop-up says 'Watch free movies here!' 🎬⚠️. Action?", options:["Avoid 🚫","Tell parent 👨‍👩‍👧","Click 🎥"]},
+{q:"Someone calls pretending to be your teacher ☎️👩‍🏫. What now?", options:["Verify first ✅","Tell adult 👨‍👩‍👧","Believe instantly 🤔"]},
+{q:"Friend shares link for free skins 🎮🎨. Safe?", options:["Don’t click 🚫","Ask parent 👨‍👩‍👧","Click 🎯"]},
+{q:"Someone says mean things in group chat 💬😡. Best?", options:["Block/report 🚫","Stay silent 🤐","Insult back 😡"]},
+{q:"An ad says 'Lose weight in 1 day!' 💊🌐. What’s right?", options:["Don’t click 🚫","Ask parent 👨‍👩‍👧","Buy pills 💊"]},
+{q:"Instagram asks location 📍📸. What’s safe?", options:["Allow only if needed ✅","Always allow 🌍","Never allow 🚫"]},
+{q:"Stranger offers to trade your gaming account 🎮💱. What now?", options:["Don’t trade 🚫","Ask parent 👨‍👩‍👧","Trade fast ⚡"]},
+{q:"Your schoolmate posts your photo without asking 📸🏫. What’s right?", options:["Tell adult 🚫","Ignore 🤐","Post back 🔄"]},
+{q:"Game asks to connect to unknown site 🌐🎮. What’s safe?", options:["Don’t connect 🚫","Ask adult 👨‍👩‍👧","Connect quickly ⚡"]},
+{q:"You see ad 'Earn $100/day from home' 💵🖥️. What’s right?", options:["Ignore 🚫","Ask parent 👨‍👩‍👧","Click fast ⚡"]},
+{q:"Friend says 'Use my Netflix login!' 🎬👯. Should you?", options:["Only with parent’s OK ✅","Say no 🚫","Always yes 👍"]},
+{q:"Pop-up says 'Your camera is on!' 📷⚠️. What do you do?", options:["Close suspicious site 🚫","Ignore 🤐","Wave to camera 👋"]},
+{q:"Stranger texts 'Hi bestie!' 📱👤. What’s safe?", options:["Don’t reply 🚫","Tell parent 👨‍👩‍👧","Reply back 📝"]},
+{q:"Your cousin shares cracked software 💻⚠️. What now?", options:["Don’t install 🚫","Ask parent 👨‍👩‍👧","Install for fun 🤪"]},
+{q:"Someone promises free PUBG UC 🎮💰. What’s safe?", options:["Don’t click 🚫","Tell parent 👨‍👩‍👧","Click link 🖱️"]},
+{q:"A stranger online says 'I’m your neighbor' 🏠👤. What do you do?", options:["Don’t trust 🚫","Ask parent 👨‍👩‍👧","Tell address 🏠"]},
+{q:"You forgot to log out on a school computer 🖥️🏫. What’s the risk?", options:["Others can use your account 🚫","It’s fine 🤷","Computer locks 🔒"]},
+{q:"Your friend posts your phone number online 📲😬. What’s right?", options:["Tell adult 🚫","Ignore 🤐","Say thanks 😂"]},
+{q:"Email says 'You’re chosen for free trip!' ✈️📧. Action?", options:["Ignore 🚫","Tell parent 👨‍👩‍👧","Click link 🔗"]},
+{q:"Pop-up says 'Download this antivirus!' 🛡️⚠️. What’s safe?", options:["Only trusted apps ✅","Click fast ⚡","Ignore all security 🚫"]},
+{q:"Someone online says 'Send me your homework' 📚👤. What’s right?", options:["Say no 🚫","Send fast ⚡","Ask parent 👨‍👩‍👧"]},
+{q:"Friend shares Netflix screen recording 🎬📱. Is it safe?", options:["Not safe 🚫","Always safe ✅","Share more 👯"]},
+{q:"You get 'bank email' asking password 🏦📧. What’s right?", options:["Never share 🚫","Click link fast ⚡","Send details 📝"]},
+{q:"Your TikTok has 1k views 🎶🎉. A stranger DMs you. What do you do?", options:["Don’t reply 🚫","Tell parent 👨‍👩‍👧","Reply fast 📨"]},
+{q:"Phone update pops up 📱⚡. What’s safe?", options:["Update from settings ✅","Download random file 🌐","Ignore forever 🚶"]},
+{q:"Snapchat asks for location 📍👻. What’s best?", options:["Allow only for friends ✅","Always allow 🌍","Never allow 🚫"]},
+{q:"Friend says 'I’ll hack your account!' 😱💻. What now?", options:["Tell adult 🚫","Ignore 🤐","Give password 😬"]},
+{q:"Stranger says 'I know where you live' 🏠👤. Action?", options:["Tell adult 🚫","Ignore 🤐","Reply back 🗣️"]},
+{q:"You see pop-up 'Congratulations!' 🎉⚠️. What’s safe?", options:["Close it 🚫","Click now 🖱️","Tell parent 👨‍👩‍👧"]},
+{q:"Your class WhatsApp group shares fake news 📰💬. What do you do?", options:["Check with adult ✅","Forward it fast 📤","Believe instantly 🤔"]},
+{q:"Friend shares game hack 🔓🎮. What’s right?", options:["Don’t install 🚫","Try for fun 😂","Share more 📩"]},
+{q:"Unknown person adds you in group chat 👥💬. What’s safe?", options:["Leave group 🚫","Stay quiet 🤐","Chat with them 💬"]},
+{q:"Your PC asks admin password 🔑💻. Who should know?", options:["Only you/parent 🚫","All friends 👯","Everyone in class 👨‍🏫"]},
+{q:"Someone online says they’re a celeb 🌟👤. What now?", options:["Don’t trust 🚫","Ask parent 👨‍👩‍👧","Believe quickly 🤩"]},
+{q:"An email says 'Download free songs' 🎵📧. What’s safe?", options:["Ignore 🚫","Click link fast ⚡","Tell parent 👨‍👩‍👧"]},
+{q:"Friend wants your hotspot password 📶👯. What’s safe?", options:["Ask parent ✅","Always share 🚫","Never share 🤐"]},
+{q:"Someone on Discord says 'Click this secret file' 📂🎮. What’s right?", options:["Don’t click 🚫","Tell parent 👨‍👩‍👧","Click quick ⚡"]},
+{q:"Stranger says 'Send me money via Paytm' 💸👤. What’s right?", options:["Don’t send 🚫","Ask adult 👨‍👩‍👧","Send now 💰"]},
+{q:"Game says 'Buy this skin!' 🎨🎮. What’s best?", options:["Ask parent before buying ✅","Buy instantly 💳","Steal card 😬"]},
+{q:"Friend posts your silly pic 📸😂. What should you do?", options:["Tell adult 🚫","Laugh only 🤣","Post revenge pic 📷"]},
+{q:"Your cousin says 'Share Wi-Fi password' 📶👨‍👩‍👦. Action?", options:["Ask parent ✅","Always share 🚫","Never share 🤐"]},
+{q:"Pop-up says 'Install VPN now' 🌐⚠️. What’s safe?", options:["Only trusted apps ✅","Click instantly ⚡","Ignore updates 🚫"]},
+{q:"You see someone spreading rumors online 📰👤. What do you do?", options:["Tell adult 🚫","Ignore 🤐","Join them 😬"]},
+{q:"Friend says 'I’ll share my password if you share yours' 🔑👯. What’s safe?", options:["Never share 🚫","Share instantly ⚡","Ask adult 👨‍👩‍👧"]},
+{q:"Your Instagram asks two-factor code 🔢📱. What’s safe?", options:["Enable ✅","Ignore 🚫","Share with friends 👯"]},
+{q:"Stranger emails 'I hacked you!' 😱📧. What now?", options:["Don’t reply 🚫","Tell adult 👨‍👩‍👧","Pay money 💸"]}
+];
+
+// 70 advice+fact items (advice + facts combined)
+// Shuffled per playthrough; each shown once until all shown
+const allFacts = [
+"Use strong passwords 💪 — make them long and tricky, like a secret code.",
+"Always keep your passwords secret 🤫 — don’t share with anyone, even friends.",
+"Think before you click any link 🖱️ — some links can trick you!",
+"Keep your computer and apps updated 🔄 — updates fix problems and protect you.",
+"Use a password manager 🗝️ to remember your strong passwords.",
+"Never open attachments from strangers 📎 — they might be dangerous.",
+"Public Wi-Fi 🌐 can be risky — hackers can see what you do.",
+"Use antivirus software 🛡️ — it protects you from viruses.",
+"Back up your files 💾 — save copies in case of accidents.",
+"Only install apps from safe places ✅ — avoid unknown websites.",
+"Check URLs carefully 🔍 — phishing sites often look real.",
+"Use browser updates automatically 🌟 — they keep you safe online.",
+"Lock your devices 🔒 with PINs or passwords.",
+"Always log out 🏃‍♂️ when using shared computers.",
+"Think before posting on social media 🖼️ — don’t overshare personal info.",
+"Ask an adult if a message seems weird 👀.",
+"Never give your password to anyone 🙅‍♂️.",
+"Use different emails for signups 📧 to reduce spam.",
+"Be careful with ‘free’ offers 🎁 — they can be scams.",
+"Be suspicious of urgent emails ⏰ — they might be tricky.",
+"Use safe browser tools 🔧 — some block dangerous websites.",
+"Check app permissions carefully 📱 — only allow what’s needed.",
+"Cover your webcam 🕵️ when not using it.",
+"Use long passphrases 📝 — four random words are stronger than a short password.",
+"Turn off Bluetooth when not needed 📴 — reduces risk of hackers.",
+"Never share OTP codes 🛑 — they are for you only.",
+"Delete old accounts you don’t use 🗑️ — they can be hacked.",
+"Parents can use safe control apps 👨‍👩‍👧 to keep kids safe online.",
+"Teach your family about phishing, malware, and online tricks 🧠.",
+"Check your bank or card statements 💳 for strange charges.",
+"Update recovery options 🛠️ for your accounts.",
+"Be careful with USB drives ⚠️ — they can carry viruses.",
+"Use device encryption 🔑 — it keeps your files safe.",
+"Beware of fake tech-support calls 📞 — don’t give control of your PC.",
+"Don’t auto-fill payment info on shared computers 💰.",
+"Use a separate email for banking 🏦 or important accounts.",
+"Check padlock icons 🔒 on websites, but be careful anyway.",
+"Install apps from official stores only 📲.",
+"Teach kids not to share personal info online 👧👦.",
+"Change default passwords on devices like IoT gadgets 🏠.",
+"Be careful with shortened links 🔗 — check where they lead.",
+"Enable a firewall 🧱 to protect your devices.",
+"Use safe DNS providers 🌐 — they can block bad websites.",
+"Ask a trusted adult if unsure 🧑‍🏫 before sharing info.",
+"Avoid pirated software 🚫 — it can have malware.",
+"Use different passwords for games 🎮 and banking 💰.",
+"Check your credit report 📝 for unexpected activity.",
+"Protect your Wi-Fi 🔑 with a strong password.",
+"Remove old browser extensions 🧹 you don’t use.",
+"Don’t answer emails asking for personal info 🛑 without checking.",
+"Use hardware keys for extra security 🔑 if possible.",
+"Keep a safe record 🗃️ of important account recovery info.",
+"Be careful of fake job offers 💼 asking for money.",
+"Blur or crop personal info in photos 🖼️ before sharing.",
+"Watch out for people pretending to be adults online 🕵️.",
+"Review app permissions periodically 🔍.",
+"Use different security questions 🤔 if possible.",
+"Keep offline backups 📀 sometimes — safe from ransomware.",
+"Update router firmware 📡 to fix security holes.",
+"Turn off unused services 📴 — less chance for hackers.",
+"Use full-disk encryption 💻 on laptops and phones.",
+"Check email domains carefully 📧 — some try to look real.",
+"Use strong passwords for network devices 🏠 like routers.",
+"Keep recovery keys offline 🔑 — not on your device.",
+"Be careful with browser extensions ⚠️ asking for too much access.",
+"Use VPN only when needed 🌍 — understand how it works.",
+"Consider a separate account for everyday browsing 🖥️.",
+"Read app store reviews ⭐ before installing apps.",
+"Watch login alerts 👀 for strange logins.",
+"Treat unknown cables and chargers carefully ⚡.",
+"Use secure chat apps 💬 with end-to-end encryption.",
+"Watch out for online tricksters 🕵️ — they exploit trust.",
+"Check apps before installing 📱.",
+"Use device-specific strong passwords 🔐 and change defaults.",
+"Learn about common local scams 🏦📲.",
+"Use trusted contacts for account recovery 👥.",
+"💡 Did you know? The first computer virus was created in 1983 and was called 'Elk Cloner' 🍏!",
+"💡 Did you know? The first email virus appeared in 1987 📧 — called 'Brain'.",
+"💡 Fun Fact: Over 4 billion records are stolen by hackers every year! 😱",
+"💡 Did you know? Malware can hide in games 🎮 and apps.",
+"💡 Fun Fact: A hacker can guess weak passwords in seconds ⏱️.",
+"💡 Did you know? Phishing attacks often pretend to be your friends or family 👤.",
+"💡 Did you know? Cyberbullying is one of the fastest growing online dangers 😡.",
+"💡 Fun Fact: Some ransomware literally locks your files until you pay 💰.",
+"💡 Did you know? The first webcam was hacked in 1994 👀.",
+"💡 Fun Fact: Many hackers start learning online when they are kids like you! 🖥️",
+"💡 Did you know? Sharing personal info online can let hackers steal your identity 🆔.",
+"💡 Fun Fact: Some viruses are designed just to be annoying — like popup spam! 💥",
+"💡 Did you know? Two-factor authentication can block 99% of attacks 🔐."
+];
+
+document.getElementById('welcome').style.display='block';
+
+function enterNickname(){
+  playerName=document.getElementById('playerName').value.trim();
+  if(!playerName){ alert('Enter your nickname'); return;}
+  document.getElementById('welcome').style.display='none';
+  document.getElementById('intro').style.display='block';
+}
+
+function startGame(){
+  document.getElementById('intro').style.display='none';
+  document.getElementById('game-container').style.display='block';
+  document.getElementById('greeting').innerText = `🦸‍: Hi ${playerName}! Let's fight the Virus Boss! We can save the system! `;
+  availableQuestions = shuffleArray(questions.slice());
+  // prepare advices/facts shuffled for this playthrough
+  facts = shuffleArray(allFacts.slice());
+  factIndex = 0;
+  questionCounter = 0;
+  showQuestion();
+}
+
+function showQuestion(){
+  if(heroHealth<=0 || bossHealth<=0) return;
+  if(availableQuestions.length===0) availableQuestions = shuffleArray(questions.slice());
+  const q = availableQuestions.pop();
+
+  questionCounter++;
+  if(questionCounter % 4 === 0){
+    // show next fact in shuffled list; do not auto-dismiss — user must close
+    if(factIndex >= facts.length){
+      // all facts have been shown; reshuffle and start again
+      facts = shuffleArray(allFacts.slice());
+      factIndex = 0;
+    }
+    createPersistentFactPopup("💡 Cyber Tip: " + facts[factIndex]);
+    factIndex++;
+  }
+
+  document.getElementById('question').innerText = q.q;
+  const optionsDiv = document.getElementById('options');
+  optionsDiv.innerHTML = '';
+  let arr = [0,1,2]; arr.sort(()=>Math.random()-0.5);
+  arr.forEach(i=>{
+    const btn = document.createElement('button');
+    btn.innerText = q.options[i];
+    btn.onclick = ()=>{ checkAnswer(i, q); if(heroHealth>0 && bossHealth>0) showQuestion(); };
+    optionsDiv.appendChild(btn);
+  });
+}
+
+// Shuffle helper
+function shuffleArray(array){ 
+    for(let i=array.length-1;i>0;i--){ 
+        const j=Math.floor(Math.random()*(i+1)); 
+        [array[i],array[j]]=[array[j],array[i]]; }
+    return array; 
+}
+
+function createProjectile(fromHero){
+  const proj=document.createElement('div');
+  proj.className='projectile';
+  proj.style.background=fromHero?'#00ff00':'#ff0000';
+  const fromElem = fromHero?document.getElementById('hero'):document.getElementById('boss');
+  const toElem = fromHero?document.getElementById('boss'):document.getElementById('hero');
+  const fromX = fromElem.offsetLeft + fromElem.offsetWidth/2;
+  const fromY = fromElem.offsetTop + fromElem.offsetHeight/2;
+  const toX = toElem.offsetLeft + toElem.offsetWidth/2;
+  const toY = toElem.offsetTop + toElem.offsetHeight/2;
+  const gameArea = document.getElementById('game-area');
+  proj.style.left = fromX+'px';
+  proj.style.top = fromY+'px';
+  gameArea.appendChild(proj);
+  setTimeout(()=>{proj.style.left = toX+'px'; proj.style.top = toY+'px';},50);
+  setTimeout(()=>proj.remove(),500);
+}
+
+/* ORIGINAL createPopup behavior preserved for feedback popups */
+function createPopup(message, color){
+  const popup=document.createElement('div');
+  popup.className='popup';
+  popup.innerText=message;
+  popup.style.background=color;
+  document.getElementById('game-area').appendChild(popup);
+  setTimeout(()=>{popup.style.opacity=1;},50);
+  setTimeout(()=>{popup.style.opacity=0;},1000);
+  setTimeout(()=>popup.remove(),1300);
+}
+
+/* NEW: persistent fact popup — stays until user closes with X */
+function createPersistentFactPopup(message){
+  // Create container
+  const popup=document.createElement('div');
+  popup.className='popup';
+  popup.style.background='#1e88e5';
+  // build inner content (left: label+message, right: close button)
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'persistent-fact';
+  contentDiv.style.width = '100%';
+  contentDiv.style.boxSizing = 'border-box';
+  // left block with label + message
+  const left = document.createElement('div');
+  left.style.flex = '1 1 auto';
+  const label = document.createElement('div');
+  label.className = 'tip-label';
+  
+  const msg = document.createElement('div');
+  msg.style.fontSize = '1.05em';
+  msg.style.lineHeight = '1.3em';
+  msg.innerText = message.replace(/^💡\s*/, '').replace(/Cyber Tip:?\s*/i, '');
+
+  left.appendChild(label);
+  left.appendChild(msg);
+  // right block with close button
+  const right = document.createElement('div');
+  right.style.flex = '0 0 auto';
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'close-btn';
+  closeBtn.innerText = '❌';
+  closeBtn.title = 'Close tip';
+  closeBtn.style.background = 'transparent';
+  closeBtn.style.border = 'none';
+  closeBtn.style.color = 'white';
+  closeBtn.style.fontSize = '18px';
+  closeBtn.style.cursor = 'pointer';
+  closeBtn.onclick = ()=>{
+    // fade out and remove
+    popup.style.opacity = 0;
+    setTimeout(()=>{ popup.remove(); }, 260);
+  };
+  right.appendChild(closeBtn);
+  contentDiv.appendChild(left);
+  contentDiv.appendChild(right);
+  popup.appendChild(contentDiv);
+
+  // place popup inside game-area
+  const area = document.getElementById('game-area');
+  area.appendChild(popup);
+  // small delay to trigger CSS transition
+  setTimeout(()=>{ popup.style.opacity = 1; }, 30);
+  // ensure popup is not removed automatically; user must click ❌
+}
+
+/* rest of your original logic unchanged */
+function checkAnswer(selectedIndex, question){
+  if(heroHealth<=0 || bossHealth<=0) return;
+  let message, color;
+
+  // Low HP check BEFORE showing popup
+  if(heroHealth<50 && !lowHpAlerted){
+    alert("Warning! Low HP! Answer carefully.");
+    lowHpAlerted = true;
+  }
+
+  if(selectedIndex === 0){
+    score += 15;
+    bossHealth -= 15;
+    correctCount++;
+    createProjectile(true);
+    message = 'Correct! +15 points';
+    color = 'green';
+  } else if(selectedIndex === 1){
+    score += 5;
+    bossHealth -= 5;
+    partialCount++;
+    createProjectile(true);
+    message = 'Partially correct! +5 points\nThis answer is can be said as correct\n but, the perfect answer is:' + question.options[0];
+    color = 'orange';
+  } else {
+    heroHealth -= 10;
+    score = Math.max(0, score - 4);
+    wrongCount++;
+    createProjectile(false);
+    message = 'Wrong! -10 HP, -4 points';
+    color = 'red';
+  }
+
+  createPopup(message, color);
+
+  if(heroHealth<=0){ heroHealth=0; endGame(false); return; }
+  if(bossHealth<=0){ document.getElementById('final-move-btn').style.display='block'; return; }
+
+  document.getElementById('hero-health').style.width = (heroHealth / 200 * 100) + '%';
+  document.getElementById('boss-health').style.width = (bossHealth / 200 * 100) + '%';
+  document.getElementById('totalPoints').innerText=score;
+  document.getElementById('correctCount').innerText=correctCount;
+  document.getElementById('partialCount').innerText=partialCount;
+  document.getElementById('wrongCount').innerText=wrongCount;
+}
+
+// Final Move
+function finalMove(){
+  const heroElem = document.getElementById('hero');
+  const bossElem = document.getElementById('boss');
+  let bulletsFired = 0;
+
+  const interval = setInterval(()=>{
+    const bullet = document.createElement('div');
+    bullet.className = 'projectile';
+    bullet.style.background = 'yellow';
+    const fromX = heroElem.offsetLeft + heroElem.offsetWidth/2;
+    const fromY = heroElem.offsetTop + heroElem.offsetHeight/2;
+    const toX = bossElem.offsetLeft + bossElem.offsetWidth/2;
+    const toY = bossElem.offsetTop + bossElem.offsetHeight/2;
+    bullet.style.left = fromX + 'px';
+    bullet.style.top = fromY + 'px';
+    document.getElementById('game-area').appendChild(bullet);
+    setTimeout(()=>{ bullet.style.left = toX+'px'; bullet.style.top = toY+'px'; },50);
+    setTimeout(()=> bullet.remove(), 500);
+
+    bulletsFired++;
+    if(bulletsFired >= 5){
+      clearInterval(interval);
+      bossElem.style.transition = 'all 0.5s';
+      bossElem.style.transform = 'scale(1.5) rotate(20deg)';
+      setTimeout(()=>{
+        const colors = ['#ff0000','#ff5500','#ffcc00','#00ffcc','#00ffff','#ff00ff'];
+        for(let i=0;i<50;i++){
+          const p = document.createElement('div');
+          p.className='projectile';
+          const size = Math.random()*15 + 5;
+          p.style.width = p.style.height = size + 'px';
+          p.style.background = colors[Math.floor(Math.random()*colors.length)];
+          p.style.left = (bossElem.offsetLeft + 60) + 'px';
+          p.style.top = (bossElem.offsetTop + 60) + 'px';
+          p.style.position = 'absolute';
+          p.style.borderRadius = '50%';
+          document.getElementById('game-area').appendChild(p);
+          const angle = Math.random() * 2 * Math.PI;
+          const speed = Math.random() * 12 + 5;
+          let x = p.offsetLeft, y = p.offsetTop;
+          const anim = setInterval(()=>{ x += Math.cos(angle) * speed; y += Math.sin(angle) * speed; p.style.left = x + 'px'; p.style.top = y + 'px'; },30);
+          setTimeout(()=>{ clearInterval(anim); p.remove(); },1200);
+        }
+        bossElem.remove();
+        endGame(true);
+      },500);
+    }
+  },200);
+  document.getElementById('final-move-btn').style.display='none';
+}
+
+function endGame(win){
+  document.getElementById('game-container').style.display='none';
+  document.getElementById('end-screen').style.display='block';
+ document.getElementById('end-message').innerHTML = 
+  (win ? 'You defeated the Virus Boss! 🏆' : 'Oh no! Virus Boss won! 😱') +
+  '<br>Game created by<br>Arjun Chhabra<br>Rakshit Bansal';
+
+  document.getElementById('final-score').innerText='Your final score: '+score;
+}
+
+function restartGame(){
+  heroHealth = 200; bossHealth = 200; score = 0; lowHpAlerted = false;
+  correctCount = 0; partialCount = 0; wrongCount = 0; availableQuestions = shuffleArray(questions.slice());
+  // reshuffle facts for a fresh playthrough
+  facts = shuffleArray(allFacts.slice());
+  factIndex = 0;
+  questionCounter = 0;
+  document.getElementById('end-screen').style.display='none';
+  document.getElementById('game-container').style.display='block';
+  document.getElementById('hero-health').style.width = '100%';
+  if(!document.getElementById('boss')){
+    const bossDiv = document.createElement('div');
+    bossDiv.id = 'boss';
+    bossDiv.className = 'character';
+    bossDiv.style.right = '50px';      
+    bossDiv.style.bottom = '50px';
+    bossDiv.innerHTML = `<div class="label">Boss [Level:♾️]</div>
+    <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBxASEBUQEhAWFhUXFxUVFRYVFRUVHRoeFRUZFhggHhUYHTsgGBolHRcWITEhJSk1Li4uIh8zOD8tNygtLisBCgoKDg0OGxAQGi0lHyYvLS8yNS0yLS8tLi0vNS0tLS0tLS0tLS0tLS8tLTAtLS0tLS0tLS0tLS0tLS0tLS0tLf/AABEIAOEA4QMBIgACEQEDEQH/xAAcAAACAgMBAQAAAAAAAAAAAAAAAQIDBQYHBAj/xABCEAABAgIHBAkDAgQFAwUAAAABAhEAQQMhMlFhgfAEEjGCBQYiQmJxoaLBE5HRUrEjY8LhB1NykvEUM7IkNEPi8v/EABkBAQADAQEAAAAAAAAAAAAAAAABAgMEBf/EACcRAQEAAgEEAQMEAwAAAAAAAAABAgMRBBIhMUETMmEFFEJRInGx/9oADAMBAAIRAxEAPwDtNTMLMzrKAyeVnHVUGLN4b4PV/bAAd370xrKEAGYWZnWUNpO3ivgebct8AGTys46qgrdxamNZQer+2BpO3ivgEwZu7MzfTQPweVnHVUPFuW+ES1fH+nXxAMqavvTEtcIrolggjuzMQAKixLN3qvtjx9PvcPLlvxgHc8rOOqoYJdxamNZQvV/br4gaTt4r4BBmYWZnWUMyeVnHVUDzZvDfB6v7dfEAAl370xrKAAMwszOsoGk/NfA825b4AI4PKzjqqBy7i1Mayg9X9uviBpPzXwBUzCzM6ygMn5cfP0gebN4b4PV/br4gECQfFMXaqgqZu7M6yhtJ+a+KKRRJ4MKxu3tUTq7KAmKUEgXWa+MWB3qtTGsoihLYv7Yk0nbxXwAGZhZmdZQGTys46qgebN4b4PV/br4gCt3FqY1lCSzN3ZnWUNpO3ivgxblvgI7qLzrKCJb38vX2ggBi9dqR1nAJtzY6rhABm7szPXCGZPy46qgFUzmzIazhl3Y2pHWcFbuLUxrKCpmFmZ1lAAm3NjquEWZzZkNZwzJ+XHz9IA7uLUxrKAZd2NqR1nFDbxIuffDfsfvFrBmFmZnrhDueVnHz9ICKUpAduyeA1nEq3Y2pGTaeCt3FqY1lCYM3dmZvpoB3tzY6rgqZzZkNZwn4Py46qipG1pNIUA/xBxSaqrw9oYiCOeFxd2NqR1nAJtzY6rjFdLdJBFDTbhYpISCeLrCd0j/d6GMm4diaxWkftVBEylvCRZnNmQ1nBW7G1I6zgBLuLUxrKEwZu7M6ygsYm3NjquEWZzZkNZw7n5cfP0gBLuLUxrKAC7t3pHWcAm3NjquCpmFmZ1lCMvbjqqArpjwHdLboxet4mKNj4pGWuMSDvVamNZQVMwszOsoBPx92Oq4ZZnNmQ1nAZPy4+fpCBIPimNZQDYuxtSOs4L25sdVwVMwszOsoSlAM/Lj5+kAyzObMhrOAu7d6R1nBW796Y1lAGZhZmdZQEt1f6hrKCK91F51lBASxZvDfB6v7YK3Y2pHWcAm3NjquAMH5r4MW5b4VTP3ZDWcMu7G1I6zgD1/p18QNJ+a+ATbmx1XASGc2ZDWcAPNm8N8Hq/t18QF3Y2pHWcAm3NjquAGk7eK+DFuW+EWZzZkNZw63bvSOs4BEa/TGudcNtoBRFO8lVKkjcKVDeSXr4VgN928o2GkWztxFvX3jTutm2ClSEUQUtFGoqWsJJSksQxUAz1l6/wC0Vh1GXGFawpSlHeWok3qJJ4NxMbF0B0ttS1/QQUby6zS0jqKQkAVB62kPPExrsZLqmtCtrSFUm6AFNWxUeDA+RPnFcfbzNeVmcnPt0PZKAoTuqpFLPE0imrwAFQGAi7FuW+CpnNmQ1nBW7d6R1nF3sycD1f26+IGk7eK+ATbmx1XAWZzZkNZwSMWbw3wer+3XxAXdjakdZwCbStY6rgBpO3ivgebct8BZnNmQ1nAXdjakdZwB6v7dfEDSfmvgE25sdVxFSgACbJLATfTzgEtbVtyX5RWlO9WawXnZ18Q9xR4ntH7VH/mLX/8AtjquAbSdvFfBi3LfBUzmzIazgLuxtSOs4A3v5evtBEt1d41lBAQDMwszM300Myflx1VCN7N4b4Cps/bAOt370xrKEGZhZmZvpoqQSo8WAbtPx18RdizeG+ADJ+XHVUFbuLUxrKD1f26+IGk/NfAAAZhZmdZQXPy46qiK1gAqIYAPu3tNo8HRHTNDtAV9MneBZSVMCjGosRiDBW5SWS3yyNbuLUxrKFU1VmZ1lDaT818GLct8FldNQpWGWARwA4uDI4cIf0gE7iUgVbu6w3QGu4XVRP1f26+IMHbxXwOGoUXVjZztikEE0aKKjUQ6g61KUl7+47Rsh6PoTRChVRpKAOwkgEHHzx4x6BRp3ivdYkAEXhLt9nMTI1+mHLLXpxw58e0NnotwBKXJAbtEqq/1Gsy4mJBmYWZnWUGBLeK+KVUm8ahyuz1cYNVxl7cdVQ3LuLUxrKEPv/T+I1brn08aIfQo1dvipQ411gfb4vgz27Zrx7q2pgzCzM6yguflx1VHh6DSobNQ75JV9NDg1kuAa7/7R7vV/br4gvjeZKK3cWpjWUAAZu7M6ygaT81+viDFm8N8EgyeVnHVUJneqs8RrKH6/wBOviBpO3ivgEkABhZmdZQzJ+XHz9IMW5b4PV/br4gECQfFMayhsGbuzOsoGk/NfhCF7ct8At1F51lBB9ZP6RBASWW42pHWcUKBJ4Go9rhwIr+cInSIBFR7MyfjHhE24YWcdVQBU3hkJ64xKt2NqR1nCrdxamJNpoQZmFmZm+mgGJtzY6rhEhnNmQ1nDuflx1VAHdxamNZQAQXY2pGTaeOZ9KUNJsW2b9GWY9m4pMjeCAxxEdLqZu7Mz1wjA9cejfq0G8B2kVjFM/tUfvCXhy9XqueHM9zyyXRPSVHtFCKVNngUvWlUwdcCI9tbsbUjrOOV9XemV7JTPxQezSJwvGI/tOOo0FKhaApCnQoA7wx4fETZwnpeom3Hz7ntMTbmx1XAWZzZkNZwGT8uOqoA7uLUxrKIdIreu1I6zgvbmx1XGE617YaPZ91BPbUEvwPBz+w+8ZDYFmkoKJSj2iijUMSUg15wUmcudxWUqnHA7lbDEX4cYtQkhgbXEH9/mCjSRIb0xLXCGwZu7MzfTQXebpLbU0NEqkMuI/UTUAM45lsdGra9rSlVe+t1f6R2legPpGZ67dL76vpJPZQSkNM8CchV94v/AMOdiL0m0NWP4afRS/6PWLY/28vdl9ffNc9Ru7F270jJtPAJtzY6rhVMwszOsoZk8rOOqoq9QVM5syGs4Zd2NqR1nCBLuLUxrKFU1VmZnrhAO9ubHVcBZnNmQ1nGF6b28CioKdJ7KaZBu7JCkKBEiH4RljT/AMQJFa1JKmkAkgfI9YKzOW8La3Y2pHWcITbmx1XHlVt1EKUbOCSogqIAfdAmr9I4AXvHquflx1VBMsvoizObMhrOI0iy7cVVVi5/+Ym5fxTGsoro6MD/AE8HnBKv6KsfsPxDi3dRedZQQEsWbw36+IPV/br4hkF2NqR1nCE25sfL1gDB+a+Eb2bw3wyzP3ZDWcBd2NqR1nAIHX6YhSUjVPX+r+/94KRfEA197hLRiNEkNvGzIazgLUl62bw36+IZGb+2Au7G1I6zgE2lax8vWA5j1q6L+jSqAs2km9J/BcRb1U6ynZj9KkdVCS9+4TNpiZGYx2XrtsgVQopGqSrdyVx9QPvHOSgu0+EWw9cV4m+ZaN3dg7LRbTRqR9RK0qQQ4UCGSPOTfEYLpHrjstH2UFVKoTRw/wB5l5PHPkUS90p3iEkglLliRwJTwJixGygcSYjnGNsut2ZT/GcM50r04ragkmjFGEksAred24lhdFWx9c9oo0JowiiKUpCQ4W7JDCve4x4EJZLCPANnLAgxGNnNc+W3bzzL5bnsnXxJYUtAU3qQoKP2LfvHp6X62URomoF9pQrqI3RMsRa/5ujn60EcREY0uMvonW7pOKs2il3i8pR1Tqzsn0tkokWTuhajeV9ojJ2yjkyuBjtCFpCEnusN0ZftEZeJw3/TpzllkmtbB25b4VGpxX/+fx/aK0IJPaLqkdZxeJtK1j5esUesjSJJBAVulqlhvnj/AGjBbdtm27OkrUmjpEDiQCgjFSH9RGeLM/dkNZxhOtVJSHZ6RAoyagVLJAAAUCWHFXC6IrLb4xtlrSdt25dKpRJZKlFe4Cd0E8TuvxxiWz9KU9G5RSqBKdxz2mHEAPwHlHkgijyO6888ugdUKGjGzClSd5a66UmsqUKiDgngPvOM3r/TGm9Qdoo2pApQFIV9jeLHdIHB843K9ubHVca16vTZTLVLA2LeK+DFuW/XxAWZzZkNZw2Lt3pHWcQ3Le/l+n9oIlurvGsocBWGZhZmdZQzJ5WcdVQPNm8N8Hq/t18QAHdxamNZRFVkgcJmJNJ+a+EL25b4CtCX48l58/SJUiCQQk7qiCKmqq4j0ifq/t18QNJ+a+A1am6T2vZTu0oFLRksFtu+4cDgR5Rk9h6w7PSs69wjgF1e7h6xk6RAUC6Q3AoIcHzEan1g6vBCTTUNkOVo47t7YC6K3mObObNfnG8z8sp1q2qi/wClU6gVL3QkAguQQr7VRpqdjQElSuJrq1WY8yEpLklmFWN0Vb7z4RW3l5+7b9TLnhJMLehQRDNcCIoE/OqFuxICCARHmpdnmPtHphgRbHKxGWMrGxs/U3rEaJYoKU/wz2Uk9wvUH/S85ftg6XZSS4iYoEIDqL6unGtzliuq56s+6On7b0ns9D2VLAesgVq+w4S4x7geD8uOqo0nqOKGlWtSg9IhlJSawxq3sVA/aqN2I1+mK+fl7ejZdmPd8HW796Y1lGJ6x7aKOhNGgby6V0ITxJJFdVwEZUXO3ivilOyI+oabd7bBLGuq4CQmb4NM5bOI53t/Qu0UISaSjqUKintV3VVvHn6I6OpdqpDR0aQwHbKqml5vhHTqZCVMk1sQoeEpIIrjFbFsn09upmLClo0Um9IqSSlX7g5wkjhz6STKefCzZ+r2yCjSk0CCABvKIBU7V9riY9+ybIiiSEIBABdAKlK/8iWHCrhF+LN4b4PV/bB244Y4+oA7uLUxrKEGZhZmdZQG5+a/OGDNuW/XxBdHdRedZQRLe/l6+0EAy7sbUjrOEJtzY6rgADMLMzrKC5+XHVUAVM/dkNZwF3Y2pHWcUbdtf0kKpSkkpFYAepwJS4E5xqNN11UzIoktiSr9miLeGWzdhh91bre3NjquESGc2ZDWcaGvrltBapAbgyfyYoX1r2ol/qN5JR8iI7oxvWa/y6JW7G1I6zjWuuPSiU0X0ULG+otSMQahWeHBz6PGqbR0zTrDKpFkXbxA+wqjwlZV6xFyY7Or7pZjCKn4RNKWjwdObUaHZqalBYhB3T4iN1PqRGibB142pFVJu0o8Q3Vf7k1fcROOFynMZaumz2424ulwRhurvWGj2sK3UKSpATvAsR2nZiOPAyEZmK2WeKyzwuF7cvYgjz9IbYmhol0ywSlAchLE3VOY0nbuvtIotQ0SUj9VId4sB+kVA/eJxwuXpfVoz2/bG/gPDVwaNW6j9M0lP9VNKvfUkoWDUKlAhmAYVj1jaIZTi8I2a7ryuNNFJVXHi2l3c5R62iraEunyricLxWGc5iXQnSB2enRTA1AsrFJqV6V+bR11JescOKsfL1jikZvorrDS0ISlNIWEldpP2llGuca9H1M1c45enUFMzmzIT1xiulpC+73pG7+8ajRdeDOjSTU5Ct30V+Y9FF1voOCkqas1FBNeLiM+XpzqtV+Wz0VHxM+9Wa9VxOpnNmQnrjGAR1w2Q8SoNwqT6sqPZs3WHZVl00o3jUQoFI+5DesSvN2u+soylbsbUjrOATbmx1XCDNUezM6yh3Py46qg1FTObMhrOBi/ikZa4wB3cWpjWUFTN3ZnWUBLdXeNZQ4qZF51lBASBmzeG+D1f26+IC7sbUjrOATaVrHVcANJ28V8eTaOjNnpDvLoKMm4oS5zZ49VTP3ZDWcMu7G1I6zgiyX2xFJ1Z2M//CK7lLG79jHmpOp+yGob6cQtx7hGwCbc2Oq4CzObMhrOI4il067/ABjT9q6khv4VMQf00gBfNP4jWNp2VVEtVGpt5JYtHV1FuJr4vIDTxzjrGtC9ppF0anBauRISAWvDiK5Rx9VpwwkuLFxoO0dTtrQaWioF0f0aUpfeZ2SrfSCSklLGaTXO6N9BhwxyuPpz6t+Wr7WL6vdCo2WiCAxWR21sxUXJ+wdhGUgMJSmiLefLPLK5Xmo09ClaShaQpJ4g1gz4RoW09Utso1UqNnKDRUrAvug7qVhaQSoOkggVpNbYtG+prLxOJxzuPprq356vtY3q70X/ANNQCiJBU5UsjgVKuwAAGUZKCCIt5vLLLK5W2nCIhExMgxCrGkQJSSQACSeAAcnIRYpPaPmf3jpfVDo9FHsyFhAC1J3lqashRJSH/wBLR1W8RTp+nu3Lt54aRs3VTbFsfo7ovWpKfQl/SPfRdRtqNpdEnB1k/bdjodTP3ZDWcOt270jrOKd1enP0/VPfNaKjqCqre2kYtRkt91R79k6jbOlXbpVqaYZAP2r9Y2sTaVrHVcIszmzIT1xiO6tMej0z+KNDRhKQlKWCQEhGADDWET9X9uviESRxPakZa4xS5US3AWsYh1LsHbxX4auhvNuW+FUzmzIazh1uxtSOs4A3v5fp/aCJbq7xrKCAjUzCzM6ygMn5cdVQPNuW+D1/p18QBW796Y1lCqZu7M6yhtJ+a+B8OW/XxABk8rOOqowvSXWaioid3tr4ECyOb8PGYWgEFJDhQIPhB/aPFs/QuzIs0SQ3BZ7X2KuEQzzmd8YtQp9s2vagyULUj9KAQjNRqOZiraOgtqRRmkVR1AOQFJJadQMo6G825b8oPV/bDtjC9JL5yytrkYjEL6XGz9L7F9WugpHoqVKq0/xFbgUQanSopL8WBjO7Qkbym4OWwrjTuvHQtNtNJsyKFG+ta1UIAvWyhXIMlRJlEYcd3lzdLJ9WS/lk/wDFvrMjZtsGybClKDRh6dTbzqUAUpZVQ3U1lplpRpI677ZP6Z80fgxgNqpFqpFqpCorUpRWVPvFRJKiXr3nd4rjpmvHh6/7fX84x27/AAg6Qoekfr0O1JH1qPdWjdJQFIPZNT8UqZz4hHko+n9mp9t2mg2cfw6JTUat7e30pZKiMN7hgRHK+huktp2da6bZ1KSfprQtSQakUo+mXPdrUlj+rdjL/wCHQ/8AWFv8pb+Tp+WjPPXJLXP1HTYTXlZHTIIII53jEOMXlQFZLecUEQKQpRFHRpJWssAOJiZOaW8L0NSndSgrLOQlClG52AqFcZ3Z+kOkU7oCKUgMwVQKlyxn+rPQY2WirrpFMV43AeEPnWfLM+r+3XxF7jPh36elyk5t4v4YfoXb9rWsil2fdqtMUe1RcxmKmYWZnWUGDt4r4MWbw3xLtwxuM4t5Bk8rOOqoHYv3piWuEHq/t18RFSXqdm4Lv/MFlKi4qHZvx8vtVoXpDMP9uOqoEBhwbw346EoCNfp/EA63fvTGsoAzMLMzrKELnbxXw8W5b4CO6i86ygiW9/L9P7QQCIIPiv1nDE25sdVwqmbuzOsoppVuQHwSx48GfDhAS+qKqnTdW8WsXbvSOs4jRpbhamIlUzCzM6ygATbmx1XBUz92Q1nBc/LjqqCt3FqY1lABd2NqR1nFO2U25RrX+lKirFgYuDMwszOso1/rjtbUSaId8+1NdfmW9YiqbMu3G1pYES2FNIaYJ2cKNIKxuSbGQlX5RZs+zLpVpoaMdpf2SBaUcAPi+Og9E9F0Wz0f06MVcVrNpRvOqojHH5rzNOm7L/UjhfWbqSKanpKXfVRUq1Fa0qQG3lF1HdDFLlzGp7X1M21HCjTSC9Ch+ymPpH1LtmxUVKN2lQlQ7riv78RK6MJtPU+hVYUtCrqlAfev1i8zyjvl34erLPy0jqF1R2VHQ+0UW0UtEnaNsQQreWl6MB/ohnqIV2ziWlGqdRugKTZ0rpaZO7SLZIS4LJFZcipyW+wjdNu2FVFSKo1cQeN4kfIxltk6p0y0JX9RACwFAHeJrD3YxW528xzZ79u2XCT/AG1+IqVG2J6nyVTuZpSkA/cnjlFXSHVApG/QErSwqJZXCUjrjFOKx/bbJOeGs70bV/h6aMimUpI3wpIeYSoVAYOlUarTUBSSCDVxBqI8xGS6p9I/Q2oEns0g+mp+AJPZP3qzMWwZ6cu3bLXSq3Y2pHWcAm0rWOq4GDN3ZnWUBk8rOOqos9oiQz92Q1nDrdu9I6zgrdxamNZQBmbuzOsoAvbmx1XCqbwyGs4Zk/LjqqCt3FqY1lAOt2NqR1nCvbmx1XCDMwszOsoZk/LjqqARZq7MhN9PDrdjakZa4wB3cWpjWUQWsAMDVMmAt3V/qGsoI8O6n/N939oID0Uz3VcN0TuyiQTmb/06+Ikxdu9I6zgE25sdVwCPnzX6+IbzblvhVM5syGs4CCD4pa+8A/V/bA0n5r4BNubHVcRWsAObMhPXGAk82bw34xzrp7pAUtMukfsipOATonONw6ybWaPZ1F+2rspI8Tv9gFRrXVXon61J9VQ/h0RBr7yhWB5Dj5tjFb5vDi6m3LKa8Wd6qdEmio/qLqpKRiSe6nuo+Tj5RnXm3LfASGc2ZDWcOt2NqR1nFnVhhMMe2F6v7dfEGD818F7c2Oq4CzObMhrOC7Veu+z/APbpd1uKD/5J/qjO9FknZqIit6NHL2Q+cUdZ9mK9mWDWpICw1yaz6b0T6vf+1o/9PaxAdvSI+XPjjxuv5j20aKqzf2jjKJm9m8N+WuEOpn7shrOAu7G1I6ziXQxfTPQ1HtCXZlyVdgq8ftHO+kdiVRqKFpYioj8Xgx1duLStY6rjF9PdEI2ijfgoVIPwcP2itjk6jp5nOcff/Xl6odL/AFqLcWXpKMAEfrHBKsTI4jGM/wCr+2OWbPTUuybQFsQpBIUkzHeB8x8GOmbHtSKWjFJRnsqDnEH9jxi0vKel292PbfcX4PzXwPNuW+FU3hkNZxKt2NqR1nB1F6v7dfEGD818Am3NjquAszmzIazgDFm8N8Hz7YGLsbUjrOATbmx1XAGDt4r4qo0lySG4ApvIn5RZVxNmQ1nDrdjakdZwEav8ofb+0EWbq7xrKCAjUzCzM6ygMnlZx1VBizeG+D1/p18QBW7i1MayhVMwszOsoeD818JamDty36+ICNIpg/8Atx/EoglKirenMVjUp3wBJL13irgn/j4+1gSwZ+Hev18QHg6X6JTTpSnfKUpLkgAng1T8DwraPZs2zoo0Jo0jdSmwBPzxJnjFoM25b8YPV/br4gr2Tnu+TrdxamNZREMzCzM6yh4PzXwYty3wWBk8rOOqoYd370xrKF6v7YMHbxXwCYM3dmdZQJQAAAAAKkAVDCqUoeLN4b4PX+mAK3cWpjWUKpm7szrKG0n5r4MW5b4AueVnHVUBLF+9Mayg9f6dfEUvvFnYcd58Z/jD7BhOsHQg2lO8mpQFSi9eB+Lq4r6mUVLRikoKRCgEkKo3E1O4e7sg5mNjSlnLct8MHX6Yjhl9Kd/fPZ1u4tTGsoGDMLMzrKBpPzXwYty3xLUGTys46qgDu4tTGsoPV/br4gwdvFfAIAMwszOsodz8uOqoMWbw3wer+2AK3cWpjWUAZmFmZ1lBg/NfBi3LfAR3UXnWUES3v5evtBAMu7G1I6zhCbStY6rgqZhZmdZQXPy46qgE4ZzZkNZw63Y2pHWcOt3FqY1lCqZhZmdZQCSGqFTWsfL1h1M5syGs4DJ+XHVUFbuLUxrKARBB8V+s4Ym3Nj5esAZmFmZ1lCbh7cdVQAWZzZkNZwy712pHWcVrpa6rXAiQ1VBQoYceyePnpoCwT92Pl6wVM5syGs4DJ+XHVUMO7i1MaygFW7G1I6zgvbmx1XCDMwszOsoZk/Lj5+kAVM5syGs4C7t3pHWcAd370xrKAM1VmZ1lAF7StY+XrCYcW7JljDMn5cdVQVu4tTGsoALuxtSOs4TcWlax1XDqZhZmdZQGT8uOqoBOGfuyE308Ot2NqR1nBW7i1MSbTRBawAw4euuEBO9pWsfL1hOGc2ZDWcV0aSTvHlq41f8AEW1u/emNZQAQXY2pHWcF7StY6rgDMwszOsoDJ+XHVUAiQzmzIXarh1u3ekdZwB3fvTGsoQAZhZmdZQE91f6hrKCK91F51lBACbB8/wARJXcy+IcEA02z5fiK02D5/iCCAkruZfESTbPl+IIICtNg+f4iSu5l8QQQFND/AN0+fxFibB8/xBBASV3MviJJtny/EOCAqRYPn+IkruZfEEEBJNs+X4isWD5/iCCAkruZfESTbPl+IIICtNg+f4iSu5l8QQQEk2z5fiPHS2ValBBAepfcy+Ikm2fL8Q4ICpNg+f4iSu5l8QQQEk2z5fiK02D5/iCCArggggP/2Q==
+" width="120" height="120">
+    <div class="health-container"><div id="boss-health"></div></div>`;
+    document.getElementById('game-area').appendChild(bossDiv);
+  }
+  document.getElementById('boss-health').style.width = '100%';
+  document.getElementById('totalPoints').innerText = '0';
+  document.getElementById('correctCount').innerText = '0';
+  document.getElementById('partialCount').innerText = '0';
+  document.getElementById('wrongCount').innerText = '0';
+  document.getElementById('final-move-btn').style.display = 'none';
+  showQuestion();
+}
+
+// Background particles
+const canvas = document.getElementById('bgCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+let particles=[];
+for(let i=0;i<100;i++){
+  particles.push({x:Math.random()*canvas.width, y:Math.random()*canvas.height, r:Math.random()*2+1, dx:(Math.random()-0.5), dy:(Math.random()-0.5)});
+}
+function animateParticles(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  for(let p of particles){
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fillStyle='rgba(350,240,87,10)';
+    ctx.fill();.0
+    p.x+=p.dx; p.y+=p.dy;
+    if(p.x<0||p.x>canvas.width)p.dx*=-1;
+    if(p.y<0||p.y>canvas.height)p.dy*=-1;
+  }
+  requestAnimationFrame(animateParticles);
+}
+animateParticles();
+</script>
+</body>
+</html>
